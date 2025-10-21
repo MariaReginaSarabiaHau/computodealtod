@@ -1,0 +1,41 @@
+name: Build & Deploy GitHub Pages
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 12 * * *"
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Build site
+        env:
+          ES_URL: ${{ secrets.ES_URL }}
+          ES_API_KEY: ${{ secrets.ES_API_KEY }}
+          ES_INDEX: ${{ secrets.ES_INDEX }}
+        run: python scripts/plot.py
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: "site"
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
