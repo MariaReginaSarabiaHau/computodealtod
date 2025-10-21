@@ -54,7 +54,6 @@ for _, row in df.iterrows():
         "bill_depth_mm": float(row["bill_depth_mm"]),
         "flipper_length_mm": int(row["flipper_length_mm"]),
         "body_mass_g": int(row["body_mass_g"]),
-        "year": int(row["year"]) if not pd.isna(row["year"]) else None,
     }
     actions.append({"_index": ES_INDEX, "_source": doc})
 
