@@ -9,18 +9,24 @@ ES_INDEX = os.getenv("ES_INDEX", "penguins")
 if not ES_URL or not ES_API_KEY:
     raise SystemExit("Faltan ES_URL o ES_API_KEY en variables de entorno.")
 
-# Conexión a Elasticsearch con API Key
+# Conexión a Elasticsearch con API Key (Encoded de Kibana funciona aquí)
 es = Elasticsearch(ES_URL, api_key=ES_API_KEY)
+
+# === INFO DE CLÚSTER: para verificar que estamos en el clúster correcto ===
+info = es.info()
+print("Conectado a:", info.get("name"), "| cluster_uuid:", info.get("cluster_uuid"))
 
 # Dataset Penguins (seaborn)
 CSV_URL = "https://raw.githubusercontent.com/mwaskom/seaborn-data/master/penguins.csv"
 df = pd.read_csv(CSV_URL)
+print("Filas CSV leídas:", len(df))
 
 # Limpieza básica
 df = df.dropna(subset=[
     "species", "island", "bill_length_mm", "bill_depth_mm",
     "flipper_length_mm", "body_mass_g", "sex"
 ])
+print("Filas tras dropna:", len(df))
 
 # Crear índice si no existe
 if es.indices.exists(index=ES_INDEX):
@@ -35,8 +41,7 @@ else:
                 "bill_length_mm": {"type": "float"},
                 "bill_depth_mm": {"type": "float"},
                 "flipper_length_mm": {"type": "integer"},
-                "body_mass_g": {"type": "integer"},
-                "year": {"type": "integer"}
+                "body_mass_g": {"type": "integer"}
             }
         }
     }
@@ -57,5 +62,7 @@ for _, row in df.iterrows():
     }
     actions.append({"_index": ES_INDEX, "_source": doc})
 
-helpers.bulk(es, actions)
-print(f"Ingestados {len(actions)} documentos en '{ES_INDEX}'.")
+print("Docs a indexar:", len(actions))
+success, errors = helpers.bulk(es, actions, raise_on_error=False, refresh=True)
+print("Bulk success:", success, "| errores:", len(errors))
+print(f"Ingestados {success} documentos en '{ES_INDEX}'.")
