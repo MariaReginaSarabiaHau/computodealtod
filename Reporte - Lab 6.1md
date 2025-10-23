@@ -1,0 +1,38 @@
+# Reporte de Laboratorio 6.1: Developing REST APIs with API Gateway
+
+
+### ¿De qué se trató el laboratorio?
+
+Este laboratorio fue el puente. Después de poner todos los datos del menú en DynamoDB, necesitábamos una manera de que el sitio web pudiera pedirle esa información. Creamos una API REST usando Amazon API Gateway. Piensa en API Gateway como el camarero del restaurante: toma tu pedido del sitio web y, en el futuro, se lo pasará a la cocina (AWS Lambda).
+
+La clave fue usar Integraciones Simuladas (MOCK). Esto es como si el camarero, en lugar de ir a la cocina, simplemente te diera un papelito con una respuesta escrita de antemano. Esto nos permitió probar la conexión del sitio web de inmediato, sin esperar a escribir el código de backend real.
+
+### Lo que hice paso a paso (y lo que aprendí)
+Preparamos el Escenario: Primero, actualicé el sitio web de la cafetería y lo subí a S3. Esto aseguró que teníamos la versión más reciente del frontend lista para conectarse.
+
+Construimos la API con Código (Boto3): En lugar de hacer clic en la consola, usé scripts de Python (Boto3) para construir toda la API ProductsApi. Esto es mucho más profesional y rápido:
+
+Creamos las Rutas (Recursos):
+
+GET /products: La ruta para pedir todo el menú.
+
+GET /products/on_offer: La ruta para pedir solo los productos en oferta.
+
+POST /create_report: La ruta para que el personal solicite un informe (futura funcionalidad).
+
+### Hicimos la Trampa del MOCK:
+Configuramos las rutas para que, cuando el sitio web las llamara, no fueran a ningún lado, sino que devolvieran un JSON fijo que habíamos escrito nosotros. Por ejemplo, GET /products siempre devolvía una lista de solo tres productos simulados. Probamos esto en la consola de API Gateway para confirmar que la "trampa" funcionara.
+
+### Conectamos los Dominios (CORS):
+El sitio web está en un dominio (el de S3) y la API está en otro. Los navegadores son protectores y bloquean esto. Para arreglarlo, configuré CORS en la API. Esto es como darle un permiso especial a nuestro dominio de S3 para hablar con la API. Luego, implementé la API en la etapa prod y obtuve la URL de conexión.
+
+### Probamos la Conexión Final:
+
+Pegué la nueva URL de la API en el archivo de configuración del sitio web (config.js).
+
+Abrí el sitio y revisé la Consola del Desarrollador (F12).
+
+La página ya no mostraba el menú completo estático, sino exactamente los tres productos simulados que yo había configurado. Esto demostró que la comunicación estaba funcionando perfectamente.
+
+# Conclusión: 
+Este laboratorio nos permitió montar la interfaz de comunicación (API Gateway) antes que la lógica de backend real. Al usar la simulación (MOCK), pudimos validar toda la arquitectura de la aplicación en tiempo récord.
