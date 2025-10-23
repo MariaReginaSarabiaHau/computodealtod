@@ -1,4 +1,4 @@
-# **Reporte de Laboratorio 3.1: Working with Amazon S3 **
+# **Reporte de Laboratorio 3.1: Working with Amazon S3**
 
 - ### Introducción
 
