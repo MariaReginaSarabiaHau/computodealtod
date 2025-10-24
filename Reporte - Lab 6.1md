@@ -1,38 +1,64 @@
-# Reporte de Laboratorio 6.1: Developing REST APIs with API Gateway
+# **Reporte de Lab 6.1: Developing REST APIs with Amazon API Gateway**
 
 
-### ¿De qué se trató el laboratorio?
+- ### Introducción
 
-Este laboratorio fue el puente. Después de poner todos los datos del menú en DynamoDB, necesitábamos una manera de que el sitio web pudiera pedirle esa información. Creamos una API REST usando Amazon API Gateway. Piensa en API Gateway como el camarero del restaurante: toma tu pedido del sitio web y, en el futuro, se lo pasará a la cocina (AWS Lambda).
+Este laboratorio representó la creación de la capa de interfaz de nuestra aplicación serverless, utilizando Amazon API Gateway para definir la Application Program Interface (API) REST del sitio web de la cafetería. El objetivo principal fue establecer las rutas (endpoints) de la API y, de manera estratégica, configurarlas con Integraciones Simuladas (MOCK). Esto nos permitió probar la conectividad y la estructura de datos del frontend inmediatamente, desacoplando la dependencia de la lógica de backend (AWS Lambda), que se desarrollará posteriormente.
 
-La clave fue usar Integraciones Simuladas (MOCK). Esto es como si el camarero, en lugar de ir a la cocina, simplemente te diera un papelito con una respuesta escrita de antemano. Esto nos permitió probar la conexión del sitio web de inmediato, sin esperar a escribir el código de backend real.
+Mi trabajo se centró en la creación programática de la API (ProductsApi), la definición de tres endpoints clave para manejar las consultas del menú, y el despliegue final para que el sitio web alojado en S3 dejara de leer datos estáticos y comenzara a comunicarse con esta nueva capa de API.
 
-### Lo que hice paso a paso (y lo que aprendí)
-Preparamos el Escenario: Primero, actualicé el sitio web de la cafetería y lo subí a S3. Esto aseguró que teníamos la versión más reciente del frontend lista para conectarse.
+- ### Tareas y Exploración de Funcionalidades
 
-Construimos la API con Código (Boto3): En lugar de hacer clic en la consola, usé scripts de Python (Boto3) para construir toda la API ProductsApi. Esto es mucho más profesional y rápido:
+    - Tarea 1: Preparación del Entorno y Verificación Inicial
+Comencé configurando el IDE de VS Code y ejecutando un script que instaló las librerías necesarias (Boto3) y desplegó la última versión del sitio web al bucket de S3.
 
-Creamos las Rutas (Recursos):
+> Verificación del Frontend: Al cargar el sitio web en el navegador, confirmé que la aplicación estaba leyendo los datos estáticos de los archivos JSON locales (all_products.json, all_products_on_offer.json). La vista "on offer" mostraba seis productos y la vista "view all" muchos más. Esta fue la base de referencia que sabríamos que cambiaría al final del laboratorio.
 
-GET /products: La ruta para pedir todo el menú.
+  - Tarea 2 y 3: Creación de Endpoints GET con Integración MOCK
+Utilicé el AWS SDK para Python (Boto3) a través de scripts (create_products_api.py, create_on_offer_api.py) para crear la API ProductsApi y definir los primeros dos recursos.
 
-GET /products/on_offer: La ruta para pedir solo los productos en oferta.
+Endpoint [GET] /products:
 
-POST /create_report: La ruta para que el personal solicite un informe (futura funcionalidad).
+> Creación y Método: Se creó el recurso /products con un método GET.
 
-### Hicimos la Trampa del MOCK:
-Configuramos las rutas para que, cuando el sitio web las llamara, no fueran a ningún lado, sino que devolvieran un JSON fijo que habíamos escrito nosotros. Por ejemplo, GET /products siempre devolvía una lista de solo tres productos simulados. Probamos esto en la consola de API Gateway para confirmar que la "trampa" funcionara.
+> Integración MOCK: Fue configurado como una integración de tipo MOCK. El cuerpo de la respuesta simulada se codificó directamente en la plantilla de respuesta (responseTemplate), devolviendo una lista de tres productos.
 
-### Conectamos los Dominios (CORS):
-El sitio web está en un dominio (el de S3) y la API está en otro. Los navegadores son protectores y bloquean esto. Para arreglarlo, configuré CORS en la API. Esto es como darle un permiso especial a nuestro dominio de S3 para hablar con la API. Luego, implementé la API en la etapa prod y obtuve la URL de conexión.
+> Propósito: Este endpoint simula la futura consulta de toda la tabla de DynamoDB.
 
-### Probamos la Conexión Final:
+Endpoint [GET] /products/on_offer:
 
-Pegué la nueva URL de la API en el archivo de configuración del sitio web (config.js).
+> Recurso Anidado: Este recurso fue creado como anidado en /products.
 
-Abrí el sitio y revisé la Consola del Desarrollador (F12).
+> Integración MOCK: Su integración simulada devolvía un único elemento, simulando el resultado de una consulta filtrada (sobre el GSI) para ítems en oferta.
 
-La página ya no mostraba el menú completo estático, sino exactamente los tres productos simulados que yo había configurado. Esto demostró que la comunicación estaba funcionando perfectamente.
+> Exploración de MOCK: Al probar ambos endpoints en la sección PRUEBAS de la consola de API Gateway, confirmé que ambos devolvían un código de estado 200 OK y el cuerpo JSON simulado que yo había definido. Esto demostró que la interfaz de la API estaba estructuralmente correcta.
 
-# Conclusión: 
-Este laboratorio nos permitió montar la interfaz de comunicación (API Gateway) antes que la lógica de backend real. Al usar la simulación (MOCK), pudimos validar toda la arquitectura de la aplicación en tiempo récord.
+  -  Tarea 4: Creación del Endpoint POST para Reportes
+Creé el tercer recurso, [POST] /create_report, al mismo nivel que /products.
+
+> Propósito: Este endpoint está destinado a la funcionalidad de solicitud de informes por parte del personal autenticado.
+
+> Integración MOCK: Su integración MOCK simplemente devolvió un mensaje codificado ("report requested, check your phone shortly") para confirmar que el cliente recibiría una respuesta en el futuro.
+
+> Observación: Noté que, a diferencia de los métodos GET, este endpoint no tenía configurados los headers CORS, algo que sería crucial para la comunicación en una solicitud AJAX POST desde un dominio diferente (S3).
+
+  - Tarea 5 y 6: Implementación y Conexión del Frontend
+El último paso fue poner la API en producción y conectar el sitio web a esta nueva URL.
+
+> Implementación: Desplegué la API seleccionando el recurso raíz / y creando la Etapa prod. Esta acción generó la URL de invocación pública de la API (ej., https://<id>.execute-api.us-east-1.amazonaws.com/prod).
+
+> Conexión del Frontend: Reemplacé el valor null en el archivo resources/website/config.js con la URL de invocación. Usé un script de Python (update_config.py) para cargar este archivo actualizado al bucket de S3.
+
+> Validación Final: Al refrescar el sitio web con la consola del desarrollador abierta, validé los resultados:
+
+El sitio ya no mostraba 6 o más productos, sino tres productos en la vista "view all" y un producto en la vista "on offer", lo que coincidía exactamente con los datos simulados de mis endpoints.
+
+La consola del desarrollador mostraba mensajes de registro indicando que la aplicación estaba realizando llamadas a API Gateway, confirmando que el frontend había migrado de los datos estáticos a la capa de API.
+
+- ### Conclusión
+Este laboratorio ha sido fundamental para establecer la capa de interfaz de comunicación y enrutamiento de nuestra arquitectura serverless. Demostré la habilidad para crear, configurar e implementar una API REST completa utilizando Amazon API Gateway y el SDK de Boto3.
+
+Estrategia MOCK y Desacoplamiento: El uso de Integraciones MOCK fue la técnica central del laboratorio, permitiéndome desacoplar el desarrollo. Pude validar la estructura de la API (rutas, métodos y formato JSON de respuesta) y la conectividad del frontend sin esperar a que el backend (AWS Lambda) estuviera listo. Este enfoque acelera el desarrollo front-end al proporcionar un contrato de datos claro desde el inicio.
+
+Fundamento para el Futuro: Aunque el tráfico es simulado, la configuración ya sentó las bases para los requisitos de comunicación clave, incluida la necesidad de CORS para los métodos GET (que asegura la comunicación entre el dominio de S3 y el de API Gateway).
+
