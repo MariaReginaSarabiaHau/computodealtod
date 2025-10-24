@@ -28,31 +28,27 @@ jobs:
 
       - name: Install deps
         run: |
-          pip install elasticsearch==8.15.1 pandas matplotlib requests
+          python -m pip install --upgrade pip
+          pip install pandas elasticsearch matplotlib
 
-      - name: Build site with plot.py
+      - name: Generate site (plots + index.html)
         env:
           ES_URL: ${{ secrets.ES_URL }}
           ES_API_KEY: ${{ secrets.ES_API_KEY }}
-          ES_INDEX: penguins
-        run: |
-          python scripts/plot.py
-          # Asegúrate de que 'plot.py' escribe en ./site/
-          # y que exista ./site/index.html
-          test -d site
-          test -f site/index.html || echo "<h1>Penguins</h1><img src='img/grafico.png'>" > site/index.html
+          ES_INDEX: ${{ secrets.ES_INDEX }}
+        run: python scripts/plot.py
 
-      - name: Upload Pages artifact
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./site
+          path: site
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
