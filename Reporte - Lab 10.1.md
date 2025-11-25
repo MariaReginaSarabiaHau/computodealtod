@@ -1,0 +1,36 @@
+
+# **Lab 10.1 — Implementando un sistema de mensajería con Amazon SNS y Amazon SQS**
+
+- ###  **Introducción**
+En este laboratorio construí un sistema de mensajería basado en Amazon SQS y Amazon SNS para automatizar el proceso de actualización del inventario de granos de café que manejan los proveedores de la cafetería. Antes de este laboratorio, los empleados tenían que llamar a cada proveedor y actualizar los datos manualmente a través de una aplicación web, lo cual era lento y propenso a errores. El objetivo general fue lograr que los proveedores enviaran sus actualizaciones directamente mediante un script, y que estas llegaran a un tema de SNS, se colocaran en una cola de SQS y fueran procesadas automáticamente por la aplicación de proveedores que está desplegada en Elastic Beanstalk. Para lograr esto, fui configurando una arquitectura orientada a mensajes donde ya no dependemos de procesos manuales, sino de un flujo automatizado, confiable y tolerante a fallos.
+
+- ###  **Tarea 1**
+
+El laboratorio comenzó preparando el entorno de desarrollo. Primero verifiqué que la pila de CloudFormation estuviera creada correctamente, ya que esa plantilla levanta todos los recursos base necesarios: la base de datos, la app en Elastic Beanstalk, buckets, roles y más. Después ingresé al IDE de VS Code, descargué los archivos del laboratorio y ejecuté el script setup.sh, el cual actualiza Python, la CLI de AWS y recrea partes del trabajo previo necesario para que este laboratorio funcione correctamente. También configuré mi IP pública para que ciertas políticas de restricción pudieran aplicar. Una vez que confirmé que la CLI v2 y boto3 estaban instalados, preparé un archivo donde anoté las URLs y ARNs que iba generando, ya que los iba a necesitar en varias de las siguientes tareas.
+
+La primera parte técnica fue crear la cola de mensajes fallidos o Dead Letter Queue. Esta cola sirve como contenedor de respaldo para todos los mensajes que no se pueden procesar correctamente después de varios intentos. La definí como cola FIFO, con un tiempo de visibilidad de 20 segundos y sin deduplicación automática por contenido. Después edité su política en formato JSON para permitir únicamente al propietario de la cuenta interactuar con ella y apliqué la política usando la AWS CLI. Con esa configuración, la cola quedó lista para recibir mensajes problemáticos desde la cola principal cuando fallaran repetidamente.
+
+- ### **Tarea 2**
+
+Posteriormente configuré la cola principal llamada updated_beans.fifo. Esta cola es donde realmente se almacenan las actualizaciones de inventario que los proveedores mandan. También es FIFO y está configurada para usar sondeo largo, deduplicación por contenido y un tiempo de visibilidad más largo. Además, establecí la política RedrivePolicy para que, si la aplicación intenta procesar un mensaje cinco veces sin éxito, ese mensaje se mueva automáticamente a la DeadLetterQueue. También edité y apliqué su política de acceso, permitiendo que el tema de SNS pueda enviar mensajes a esta cola y que las instancias de Elastic Beanstalk puedan recibirlos y procesarlos. Cuando obtuve su ARN, lo guardé para enlazarlo después con SNS.
+- ###  **Tarea 3**
+
+La siguiente etapa fue crear el tema FIFO de SNS llamado updated_beans_sns.fifo. Este tema es el punto donde los proveedores publican sus mensajes. Lo configuré con deduplicación basada en contenido para evitar procesar dos veces el mismo mensaje cuando sean idénticos en un intervalo de cinco minutos. Después apliqué su política de acceso para restringir quién puede administrar o publicar en él, dejándolo únicamente disponible para el propietario de la cuenta. Con el ARN del tema guardado, ya tenía los dos componentes principales que se iban a comunicar: el tema SNS y la cola SQS.
+- ### **Tarea 4**
+
+Una vez listos ambos, configuré la suscripción entre SNS y SQS. Básicamente, este paso conecta ambos servicios, haciendo que cualquier mensaje que se publique en el tema de SNS llegue automáticamente a la cola updated_beans.fifo. Al ejecutar el comando de suscripción, recibí un SubscriptionArn, lo que confirmó que el enlace se creó correctamente. A partir de aquí, toda la parte de mensajería básica quedó funcional.
+- ### **Tarea 5**
+
+Para validar que la integración funcionaba de verdad, usé el script de Python send_beans_update.py. Este script lee archivos de texto con registros de inventario y los envía al tema de SNS. Primero actualicé el ARN dentro del script y después lo ejecuté con el archivo beans_update_1.txt, que contenía cuatro mensajes, incluyendo un duplicado. SNS procesó solo tres debido a la deduplicación por contenido, demostrando que la configuración funcionaba correctamente. Luego fui a la consola de SQS y confirmé que la cola updated_beans.fifo tenía exactamente tres mensajes. También pude ver los metadatos como Subject y MessageAttributes, lo cual es útil para distinguir alertas como “out_of_stock”.
+- ### **Tarea 6**
+
+Después probé el envío de un segundo lote de datos, pero esta vez sin eliminar la deduplicación. Limpié la cola y envié el archivo beans_update_2.txt, dejando así tres mensajes nuevos listos para que la aplicación los consumiera. El siguiente paso consistió en integrar la aplicación de proveedores de café con la cola updated_beans.fifo. Esto se logró modificando las variables de entorno de Elastic Beanstalk, agregando la URL de la cola y la región. Cuando el entorno terminó de actualizarse, la aplicación comenzó automáticamente a leer los mensajes. Revisé el código consumer.js y pude ver cómo las funciones procesan cada mensaje, actualizan la base de datos y eliminan los registros correctamente procesados.
+### - **Tarea 8**
+
+Como los mensajes enviados en el segundo lote eran inválidos a propósito, la aplicación no pudo procesarlos. Por lo tanto, la cola registered_beans.fifo volvió a recibirlos varias veces hasta que alcanzaron el límite de cinco intentos fallidos. Fue ahí cuando SQS movió los mensajes automáticamente a la DeadLetterQueue.fifo. Revisé esta cola y efectivamente ahí estaban los mensajes erróneos, lo que confirma que la política RedrivePolicy estaba funcionando correctamente.
+- ### **Tarea 9**
+
+Finalmente envié un tercer lote de mensajes, esta vez con datos válidos. Después de ejecutar el script con beans_update_3.txt, regresé a la aplicación y actualicé la vista del inventario. Las cantidades de ciertos tipos de granos se actualizaron correctamente, lo cual demostró que la aplicación ya estaba leyendo y procesando las actualizaciones de forma completamente automática.
+
+- ### **Conclusión**
+En conclusión, este laboratorio me permitió implementar desde cero un sistema de mensajería robusto usando Amazon SNS y Amazon SQS. Configuré una cola principal, una cola de mensajes fallidos, un tema de SNS, la suscripción entre ambos y los permisos correspondientes. Probé la publicación de mensajes usando Python, confirmé deduplicación, revisé el transporte de mensajes y finalmente integré la aplicación para que leyera la cola y actualizara la base de datos sin intervención manual. Este flujo solucionó la necesidad de la cafetería de mantener actualizado su inventario sin depender de la captura manual, haciendo el proceso más rápido, confiable y escalable.
